@@ -1,7 +1,7 @@
 import sqlite3 from 'sqlite3';
 const sql3 = sqlite3.verbose();
 
-const DB = new sql3.Database('./notifier.db', sqlite3.OPEN_READWRITE, connected);
+const DB = new sql3.Database('./notifier.db', connected);
 
 function connected(err) {
     if (err) {
