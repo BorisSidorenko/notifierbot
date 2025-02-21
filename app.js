@@ -33,7 +33,7 @@ const telegramBot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true 
 telegramBot.onText(/\/start _([^_]+)_([^_]+)/, (msg, match) => {
     const [, discordId, discordUserName] = match;
     const chatIdFromMsg = msg.chat.id;
-    const userNameFromMsg = msg.chat.username;
+    const userNameFromMsg = msg.chat?.username;
 
     saveNewUser(chatIdFromMsg, userNameFromMsg, discordId, discordUserName)
     .then(() => telegramBot.sendMessage(chatIdFromMsg, 'Ты подписался!'))

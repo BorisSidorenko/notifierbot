@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import { getTargetTelegramChatIds } from '../database.js';
+import { getRandomMessageFromMessages } from '../message.js';
 
 const userCooldowns = new Map();
 
@@ -20,20 +21,14 @@ function execute(oldSate, newState, getOnlineUsersInDiscord, sendTelegramMessage
             
             const user = isNewlyConnectedUser ? newState.member.displayName : oldSate.member.displayName;
             const channelName = isNewlyConnectedUser ? newState.channel.name : oldSate.channel.name;
-            const guildName = isNewlyConnectedUser ? newState.guild.name : oldSate.guild.name;
-
-            const message = isNewlyConnectedUser ? 
-                `*${user}* залетел на канал *${channelName}* в ${guildName} и ждёт тебя для жарких каток`
-                :
-                `*${user}* понял, что команду мечты не дождаться и ливнул с канала *${channelName}* на ${guildName}`;
-
+            
             getTargetTelegramChatIds()
             .then((res) => {
                 getOnlineUsersInDiscord()
                 .then((discordUsers) => {
                     const discordUsersToCheck = isNewlyConnectedUser ? discordUsers : [...discordUsers, oldSate.id];
                     res.filter((r) => !discordUsersToCheck.includes(r.discordUserId)).forEach((u) => {
-                        sendTelegramMessage(u.telegramChatId, message)
+                        sendTelegramMessage(u.telegramChatId, getRandomMessageFromMessages(user, channelName, isNewlyConnectedUser));
                     });
                 })
             })
