@@ -15,7 +15,8 @@ function setupTelegramUsersTable () {
     let sql = `CREATE TABLE IF NOT EXISTS TelegramUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         chatId INTEGER NOT NULL, 
-        userName TEXT NOT NULL
+        userName TEXT NOT NULL,
+        isSubscribed INTEGER NOT NULL
     )`;
     DB.run(sql, [], (err) => {
         if (err) {
@@ -29,7 +30,7 @@ function setupTelegramUsersTable () {
 function setupDiscordUsersTable () {
     let sql = `CREATE TABLE IF NOT EXISTS DiscordUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        userId INTEGER NOT NULL, 
+        userId TEXT NOT NULL, 
         userName TEXT NOT NULL
     )`;
     DB.run(sql, [], (err) => {
@@ -45,9 +46,8 @@ function setupDiscordToTelegramTable () {
     let sql = `CREATE TABLE IF NOT EXISTS DiscordToTelegramUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         telegramChatId INTEGER NOT NULL, 
-        discordUserId INTEGER NOT NULL,
-        FOREIGN KEY (telegramChatId) REFERENCES TelegramUsers (chatId),
-        FOREIGN KEY (discordUserId) REFERENCES DiscordUsers (userId)
+        discordUserId TEXT NOT NULL,
+        FOREIGN KEY (telegramChatId) REFERENCES TelegramUsers (chatId)
     )`;
     DB.run(sql, [], (err) => {
         if (err) {
@@ -69,7 +69,6 @@ function checkIfDiscordToTelegramUserExists (telegramChatId, discordUserId) {
     })
 }
 
-
 function checkIfTelegramUserExists (chatId) {
     return new Promise((resolve, reject) => {
         const sql = 'SELECT chatId from TelegramUsers WHERE chatId = ?';
@@ -83,10 +82,13 @@ function checkIfTelegramUserExists (chatId) {
 
 function getTargetTelegramChatIds () {
     return new Promise((resolve, reject) => {
-        const sql = 'SELECT chatId from TelegramUsers';
+        const sql = `
+            SELECT telegramChatId, discordUserId from DiscordToTelegramUsers 
+            JOIN TelegramUsers ON DiscordToTelegramUsers.telegramChatId = TelegramUsers.chatId
+            WHERE TelegramUsers.isSubscribed > 0`;
         DB.all(sql, [], (err, rows) => {
             if (err) reject(err);
-            resolve(rows?.map((user) => user.chatId));
+            resolve(rows);
         })
     })
 }
@@ -117,21 +119,41 @@ function saveDiscordToTelegramUser (telegramChatId, discordUserId) {
     })
 }
 
-function saveTelegramUser (chatId, userName) {
-    const sql = 'INSERT INTO TelegramUsers(chatId, userName) VALUES (?, ?)';
+function saveTelegramUser (chatId, userName, isSubscribed = 1) {
+    const sql = 'INSERT INTO TelegramUsers (chatId, userName, isSubscribed) VALUES (?, ?, ?)';
     return new Promise((resolve, reject) => {
         checkIfTelegramUserExists(chatId)
             .then((idFromDb) => {
                 if (!idFromDb) {
-                    DB.run(sql, [chatId, userName], function (err) {
+                    DB.run(sql, [chatId, userName, isSubscribed], function (err) {
                         if (err) reject(err);
                         console.log(`New user added to TelegramUsers - ${userName}:${chatId}`);
+                        resolve(this.lastID);
+                    });
+                } else {
+                    updateTelegramUser(chatId, userName, isSubscribed)
+                    .then(() => console.log(`Existing user was updated in TelegramUsers - ${userName}:${chatId}:${isSubscribed}`));
+                }
+            })
+            .catch((err) => console.log(err.message));
+        
+    })
+}
+
+function updateTelegramUser (chatId, userName, isSubscribed) {
+    const sql = 'UPDATE TelegramUsers SET chatId = ?, userName = ?, isSubscribed = ? WHERE chatId = ?';
+    return new Promise((resolve, reject) => {
+        checkIfTelegramUserExists(chatId)
+            .then((idFromDb) => {
+                if (idFromDb) {
+                    DB.run(sql, [chatId, userName, isSubscribed], function (err) {
+                        if (err) reject(err);
+                        console.log(`TelegramUsers was updated - ${userName}:${chatId}:${isSubscribed}`);
                         resolve(this.lastID);
                     });
                 }
             })
             .catch((err) => console.log(err.message));
-        
     })
 }
 
@@ -177,5 +199,6 @@ export {
     checkIfDiscordUserExists, 
     saveDiscordUser,
     getTargetTelegramChatIds,
-    saveNewUser
+    saveNewUser,
+    updateTelegramUser
 }
